@@ -18,7 +18,10 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = []
+dev-dependencies = [
+    "pytest>=8.2.2",
+    "pytest-asyncio>=0.23.7",
+]
 
 [tool.rye.scripts]
 "dev:server" = "uvicorn server:app --port 44777 --reload"
@@ -28,3 +31,6 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/server"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

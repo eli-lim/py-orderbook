@@ -28,10 +28,19 @@ h11==0.14.0
     # via uvicorn
 httptools==0.6.1
     # via blacksheep
+iniconfig==2.0.0
+    # via pytest
 itsdangerous==2.1.2
     # via blacksheep
 markupsafe==2.1.5
     # via essentials-openapi
+packaging==24.1
+    # via pytest
+pluggy==1.5.0
+    # via pytest
+pytest==8.2.2
+    # via pytest-asyncio
+pytest-asyncio==0.23.7
 python-dateutil==2.8.2
     # via blacksheep
 pyyaml==6.0.1
