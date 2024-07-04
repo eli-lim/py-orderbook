@@ -4,8 +4,8 @@ from typing import List
 
 
 class Side(Enum):
-    buy = "buy"
-    sell = "sell"
+    BUY = "buy"
+    SELL = "sell"
 
 
 class OrderType(Enum):

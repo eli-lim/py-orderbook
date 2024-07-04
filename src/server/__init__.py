@@ -3,7 +3,6 @@ from blacksheep.server.openapi.v3 import OpenAPIHandler
 from openapidocs.v3 import Info
 
 from .securities import *
-from .orderbook import *
 from .orders import *
 
 app = Application()
