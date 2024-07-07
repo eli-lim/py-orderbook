@@ -6,7 +6,7 @@ from src.server.orders.matcher import Matcher, OrderBookOrder, OrderBook, Execut
 from src.server.orders.model import Order, Side, OrderType
 
 
-def test_matcher_bids():
+def test_limit_buy():
     matcher = Matcher(
         orderbook("""
           ASK 11.5 : 1[200]
@@ -66,7 +66,7 @@ def test_matcher_bids():
     """)
 
 
-def test_matcher_asks():
+def test_limit_sell():
     matcher = Matcher(
         orderbook("""
             ASK 11.5 : 1[200]
@@ -205,6 +205,21 @@ def test_price_time_priority():
     assert result.order_book == orderbook("""
         BID 10.5 : 6[100]
     """)
+
+
+def test_market_buy():
+    # TODO
+    pass
+
+
+def test_market_sell():
+    # TODO
+    pass
+
+
+def test_cancel_order():
+    # TODO
+    pass
 
 
 def orderbook(book: str) -> OrderBook:
