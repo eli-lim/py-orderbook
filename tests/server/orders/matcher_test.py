@@ -1,7 +1,7 @@
 from pprint import pprint
 
-from src.server import Side, Order, OrderType
 from src.server.orders.matcher import Matcher, OrderBookEntry
+from src.server.orders.model import Order, Side, OrderType
 
 
 def test_matcher():
