@@ -1,0 +1,71 @@
+# Runs lint, format and test on every PR to main
+
+name: CI
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' # TODO: Renovate
+
+      - name: Install Rye
+        uses: eifinger/setup-rye@v3
+        with:
+          version: '0.35.0' # TODO: Renovate
+
+      - name: Install dependencies
+        run: rye sync
+
+      - name: Lint
+        # Errors if not "All checks passed!"
+        run: rye lint | grep -q "All checks passed!" && exit 0 || exit 1
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' # TODO: Renovate
+
+      - name: Install Rye
+        uses: eifinger/setup-rye@v3
+        with:
+          version: '0.35.0' # TODO: Renovate
+
+      - name: Install dependencies
+        run: rye sync
+
+      - name: Format
+        # Errors if "Would reformat" is in the output of `rye format --check`
+        run: rye format --check | grep -q "Would reformat" && echo "Unformatted code caught. Run `rye format` and commit again." && exit 1 || exit 0
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' # TODO: Renovate
+
+      - name: Install Rye
+        uses: eifinger/setup-rye@v3
+        with:
+          version: '0.35.0' # TODO: Renovate
+
+      - name: Install dependencies
+        run: rye sync
+
+      - name: Test
+        run: rye test
+
