@@ -14,6 +14,3 @@ app.services.add_scoped(SecuritiesRepository)
 
 docs = OpenAPIHandler(info=Info(title="Example API", version="0.0.1"))
 docs.bind_app(app)
-
-class A:
-    pass
