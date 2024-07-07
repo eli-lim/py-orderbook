@@ -1,12 +1,13 @@
-from collections import OrderedDict
 from dataclasses import dataclass
+
+from sortedcontainers import SortedDict
 from typing import List
 
 from .model import Order, Side
 
 
 @dataclass
-class OrderBookEntry:
+class OrderBookOrder:
     """
     An entry in the order book.
     """
@@ -14,7 +15,6 @@ class OrderBookEntry:
     maker_id: int
     quantity: int
     price: float
-    # TODO: timestamp
 
 
 @dataclass
@@ -47,9 +47,9 @@ class OrderBook:
     }
     """
 
-    securities_id: int
-    asks: OrderedDict[float, List[OrderBookEntry]]
-    bids: OrderedDict[float, List[OrderBookEntry]]
+    security_id: int
+    asks: SortedDict[float, List[OrderBookOrder]]
+    bids: SortedDict[float, List[OrderBookOrder]]
 
 
 @dataclass
@@ -69,7 +69,7 @@ class Execution:
 
 @dataclass
 class MatchResult:
-    orderBook: OrderBook
+    order_book: OrderBook
     executions: List[Execution]
 
 
@@ -78,29 +78,27 @@ class Matcher:
     Matching Engine responsible for matching buy and sell orders for a given securities.
     """
 
-    def __init__(self, asks=None, bids=None):
-        self.asks: OrderedDict[float, List[OrderBookEntry]] = (
-            OrderedDict() if asks is None else asks
+    def __init__(self, order_book=None):
+        self.order_book = (
+            OrderBook(security_id=1, asks=SortedDict(), bids=SortedDict())
+            if order_book is None
+            else order_book
         )
-        self.bids: OrderedDict[float, List[OrderBookEntry]] = (
-            OrderedDict() if bids is None else bids
-        )
+        self.asks: SortedDict[float, List[OrderBookOrder]] = self.order_book.asks
+        self.bids: SortedDict[float, List[OrderBookOrder]] = self.order_book.bids
 
-    def match(self, order: Order) -> MatchResult:
+    def add(self, order: Order) -> MatchResult:
         """
         Match the order against the current order book, producing a new order book and a series of executions.
         The final execution price will be the new market price of the securities.
         """
         if order.side == Side.BUY:
             # Incoming bid
-            bid = OrderBookEntry(
-                maker_id=order.client_id, quantity=order.quantity, price=order.price
+            bid = OrderBookOrder(
+                maker_id=order.client_id,
+                quantity=order.quantity,
+                price=order.price,
             )
-
-            if order.price not in self.bids:
-                self.bids[order.price] = [bid]
-            else:
-                self.bids[order.price].append(bid)
 
             # Look for a matching ask
             executions = []
@@ -109,38 +107,97 @@ class Matcher:
             # asks = { 11.5: 200, 11.0: 100, 10.5: 50 }
             # executions: [ 100 @ 11.0, 20 @ 10.5 ]
             # order book: { 11.5: 200, 10.5: 30 }
-            for ask_price in list(self.asks):
+            for ask_price in self.asks:
                 asks = self.asks[ask_price]
+
                 for ask in asks:
-                    if bid.price >= ask_price:
+                    if bid.price >= ask_price and bid.quantity > 0:
                         # Match is found, we can execute
-                        quantity = min(bid.quantity, ask.quantity)
-                        executions.append(
-                            Execution(
-                                maker_id=1,
-                                taker_id=2,
-                                price=ask_price,
-                                quantity=quantity,
-                            )
+                        execution = Execution(
+                            maker_id=ask.maker_id,
+                            taker_id=bid.maker_id,
+                            price=max(ask_price, bid.price),  # favour the maker
+                            quantity=min(ask.quantity, bid.quantity),
                         )
-                        bid.quantity -= quantity
-                        ask.quantity -= quantity
+                        executions.append(execution)
+                        bid.quantity -= execution.quantity
+                        ask.quantity -= execution.quantity
 
-                        # Remove the ask if it's empty
-                        if ask.quantity == 0:
-                            del self.asks[ask_price]
+            # TODO: Optimize
+            # Remove depleted orders
+            for ask_price in list(self.asks):
+                for ask in self.asks[ask_price]:
+                    if ask.quantity == 0:
+                        self.asks[ask_price].remove(ask)
 
-                        if bid.quantity == 0:
-                            # Remove from order book
-                            del self.bids[bid.price]
-                            break
+                price_level_quantity = sum(
+                    [ask.quantity for ask in self.asks[ask_price]]
+                )
+                if price_level_quantity == 0:
+                    del self.asks[ask_price]
+
+            # If the bid is not fully executed, add it to the order book
+            if bid.quantity > 0:
+                if bid.price not in self.bids:
+                    self.bids[bid.price] = []
+                self.bids[bid.price].append(bid)
 
             return MatchResult(
-                orderBook=OrderBook(
-                    securities_id=order.securities_id, asks=self.asks, bids=self.bids
-                ),
+                order_book=self.order_book,
                 executions=executions,
             )
+
+        elif order.side == Side.SELL:
+            # Incoming ask
+            ask = OrderBookOrder(
+                maker_id=order.client_id, quantity=order.quantity, price=order.price
+            )
+
+            # Look for a matching bid
+            executions = []
+
+            for bid_price in reversed(self.bids):
+                bids = self.bids[bid_price]
+                for bid in bids:
+                    if ask.price <= bid_price and ask.quantity > 0:
+                        # Match is found, we can execute
+                        execution = Execution(
+                            maker_id=bid.maker_id,
+                            taker_id=ask.maker_id,
+                            price=min(ask.price, bid_price),  # favour the maker
+                            quantity=min(ask.quantity, bid.quantity),
+                        )
+                        executions.append(execution)
+
+                        ask.quantity -= execution.quantity
+                        bid.quantity -= execution.quantity
+
+            # TODO: Optimize
+            # Remove depleted orders
+            for price in list(self.bids):
+                for bid in self.bids[price]:
+                    if bid.quantity == 0:
+                        self.bids[price].remove(bid)
+
+                price_level_quantity = sum(
+                    [price.quantity for price in self.bids[price]]
+                )
+                if price_level_quantity == 0:
+                    del self.bids[price]
+
+            # If the ask is not fully executed, add it to the order book
+            if ask.quantity > 0:
+                if ask.price not in self.asks:
+                    self.asks[ask.price] = []
+                self.asks[ask.price].append(ask)
+
+            return MatchResult(
+                order_book=self.order_book,
+                executions=executions,
+            )
+
+        else:
+            raise ValueError("Invalid order side")
 
 
 class RootMatcher:
@@ -156,7 +213,7 @@ class RootMatcher:
             3: Matcher(),
         }
 
-    def get_matcher(self, securities_id: int) -> Matcher:
+    def get_matcher(self, security_id: int) -> Matcher:
         """
         Get the matcher for a given securities.
         """

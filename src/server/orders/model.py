@@ -17,7 +17,7 @@ class OrderType(Enum):
 class Order:
     id: str
     client_id: int
-    securities_id: int
+    security_id: int
     side: Side
     quantity: int
     type: OrderType

@@ -8,6 +8,7 @@ authors = [
 dependencies = [
     "uvicorn>=0.30.1",
     "blacksheep>=2.0.7",
+    "sortedcontainers>=2.4.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.12"
@@ -28,9 +29,6 @@ dev-dependencies = [
 
 [tool.hatch.metadata]
 allow-direct-references = true
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/server"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

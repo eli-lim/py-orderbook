@@ -8,7 +8,7 @@ from .model import OrderRepository, Order, OrderType, Side
 @dataclass
 class CreateOrderInput:
     client_id: int
-    securities_id: int
+    security_id: int
     side: Side
     quantity: int
     type: OrderType
@@ -25,7 +25,7 @@ class OrderManager:
             Order(
                 id=str(uuid4()),
                 client_id=order.client_id,
-                securities_id=order.securities_id,
+                security_id=order.security_id,
                 side=order.side,
                 quantity=order.quantity,
                 type=order.type,

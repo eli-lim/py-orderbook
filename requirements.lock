@@ -41,5 +41,7 @@ rodi==2.0.6
     # via guardpost
 six==1.16.0
     # via python-dateutil
+sortedcontainers==2.4.0
+    # via server
 uvicorn==0.30.1
     # via server
