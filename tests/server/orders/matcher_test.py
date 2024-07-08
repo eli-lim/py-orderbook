@@ -37,6 +37,7 @@ def test_limit_buy():
     assert result.order_book == orderbook("""
         ASK 11.5 : 1[200]
         ASK 11.0 :  2[30]
+        ASK 10.5 :
         BID 10.0 :  3[50] 
         BID 9.80 : 2[100]
         BID 9.70 : 1[200]
@@ -59,8 +60,10 @@ def test_limit_buy():
     ]
     assert result.order_book == orderbook("""
         ASK 11.5 : 1[200]
+        ASK 11.0 : 
         BID 11.0 :  5[90]
-        BID 10.0 :  3[50] 
+        ASK 10.5 :
+        BID 10.0 :  3[50]
         BID 9.80 : 2[100]
         BID 9.70 : 1[200]
     """)
@@ -94,6 +97,7 @@ def test_limit_sell():
     ]
     assert result.order_book == orderbook("""
         ASK 11.5 : 1[200]
+        BID 11.0 : 
         ASK 10.5 :  4[30]
         BID 10.0 :  3[50] 
         BID 9.80 : 2[100]
@@ -133,6 +137,9 @@ def test_large_orders():
     ]
     assert result.order_book == orderbook("""
         BID 100  : 1337[650]
+        ASK 11.5 :
+        ASK 11.0 :
+        ASK 10.5 :
         BID 10.0 : 3[50]  
         BID 9.80 : 2[100]
         BID 9.70 : 1[200]
@@ -203,6 +210,7 @@ def test_price_time_priority():
         Execution(maker_id=5, taker_id=6, price=10.5, quantity=50),
     ]
     assert result.order_book == orderbook("""
+        ASK 10.5 :
         BID 10.5 : 6[100]
     """)
 
@@ -236,10 +244,17 @@ def orderbook(book: str) -> OrderBook:
             continue
 
         # Example: `ASK 10.5 : 3[50] 2[100] 3[20]  -- executions must respect this order`
-        pattern = r"^(ASK|BID)\s+(\d+\.?\d*)\s+:\s+(.*)"
+        pattern = r"^(ASK|BID)\s+(\d+\.?\d*)\s+:\s*(\d+\[\d+\](?:\s+\d+\[\d+\])*)*"
 
         side, price, makers = re.match(pattern, line).groups()
         price = float(price)
+
+        if makers is None:  # depleted price level
+            if side == "ASK":
+                order_book.asks[price] = []
+            elif side == "BID":
+                order_book.bids[price] = []
+            continue
 
         for maker in makers.split():
             pattern = r"(\d+)\[(\d+)\]"

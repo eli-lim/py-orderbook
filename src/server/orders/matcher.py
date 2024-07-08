@@ -103,14 +103,13 @@ class Matcher:
             # Look for a matching ask
             executions = []
 
-            # bid = 120 @ 11.0
-            # asks = { 11.5: 200, 11.0: 100, 10.5: 50 }
-            # executions: [ 100 @ 11.0, 20 @ 10.5 ]
-            # order book: { 11.5: 200, 10.5: 30 }
             for ask_price in self.asks:
                 asks = self.asks[ask_price]
 
-                for ask in asks:
+                i = 0
+                while i < len(asks):
+                    ask = asks[i]
+
                     if bid.price >= ask_price and bid.quantity > 0:
                         # Match is found, we can execute
                         execution = Execution(
@@ -123,18 +122,11 @@ class Matcher:
                         bid.quantity -= execution.quantity
                         ask.quantity -= execution.quantity
 
-            # TODO: Optimize
-            # Remove depleted orders
-            for ask_price in list(self.asks):
-                for ask in self.asks[ask_price]:
-                    if ask.quantity == 0:
-                        self.asks[ask_price].remove(ask)
-
-                price_level_quantity = sum(
-                    [ask.quantity for ask in self.asks[ask_price]]
-                )
-                if price_level_quantity == 0:
-                    del self.asks[ask_price]
+                        # Remove depleted orders
+                        if ask.quantity == 0:
+                            del asks[i]
+                            i -= 1
+                    i += 1
 
             # If the bid is not fully executed, add it to the order book
             if bid.quantity > 0:
@@ -158,7 +150,11 @@ class Matcher:
 
             for bid_price in reversed(self.bids):
                 bids = self.bids[bid_price]
-                for bid in bids:
+
+                i = 0
+                while i < len(bids):
+                    bid = bids[i]
+
                     if ask.price <= bid_price and ask.quantity > 0:
                         # Match is found, we can execute
                         execution = Execution(
@@ -172,18 +168,12 @@ class Matcher:
                         ask.quantity -= execution.quantity
                         bid.quantity -= execution.quantity
 
-            # TODO: Optimize
-            # Remove depleted orders
-            for price in list(self.bids):
-                for bid in self.bids[price]:
-                    if bid.quantity == 0:
-                        self.bids[price].remove(bid)
+                        # Remove depleted orders
+                        if bid.quantity == 0:
+                            del bids[i]
+                            i -= 1
 
-                price_level_quantity = sum(
-                    [price.quantity for price in self.bids[price]]
-                )
-                if price_level_quantity == 0:
-                    del self.bids[price]
+                    i += 1
 
             # If the ask is not fully executed, add it to the order book
             if ask.quantity > 0:
