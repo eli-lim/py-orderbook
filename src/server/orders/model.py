@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 
 class Side(Enum):
@@ -21,7 +21,7 @@ class Order:
     side: Side
     quantity: int
     type: OrderType
-    price: float
+    price: Optional[float] = None
 
 
 class OrderRepository:
