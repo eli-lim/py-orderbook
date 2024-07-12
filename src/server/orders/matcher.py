@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from sortedcontainers import SortedDict
 from typing import List
 
-from .model import Order, Side
+from .model import Order, Side, OrderType
 
 
 @dataclass
@@ -92,6 +92,15 @@ class Matcher:
         Match the order against the current order book, producing a new order book and a series of executions.
         The final execution price will be the new market price of the securities.
         """
+
+        if order.type == OrderType.market:
+            return self.match_market_order(order)
+        elif order.type == OrderType.limit:
+            return self.match_limit_order(order)
+        else:
+            raise ValueError("Unsupported order type")
+
+    def match_limit_order(self, order: Order) -> MatchResult:
         if order.side == Side.BUY:
             # Incoming bid
             bid = OrderBookOrder(
@@ -110,7 +119,7 @@ class Matcher:
                 while i < len(asks):
                     ask = asks[i]
 
-                    if bid.price >= ask_price and bid.quantity > 0:
+                    if bid.price >= ask.price and bid.quantity > 0:
                         # Match is found, we can execute
                         execution = Execution(
                             maker_id=ask.maker_id,
@@ -128,7 +137,7 @@ class Matcher:
                             i -= 1
                     i += 1
 
-            # If the bid is not fully executed, add it to the order book
+            # If the bid is not fully matched, add it to the order book
             if bid.quantity > 0:
                 if bid.price not in self.bids:
                     self.bids[bid.price] = []
@@ -175,7 +184,7 @@ class Matcher:
 
                     i += 1
 
-            # If the ask is not fully executed, add it to the order book
+            # If the ask is not fully matched, add it to the order book
             if ask.quantity > 0:
                 if ask.price not in self.asks:
                     self.asks[ask.price] = []
@@ -187,7 +196,107 @@ class Matcher:
             )
 
         else:
-            raise ValueError("Invalid order side")
+            raise ValueError(f'Unsupported order side "{order.side}"')
+
+    def match_market_order(self, order: Order) -> MatchResult:
+        if order.side == Side.BUY:
+            # Incoming market bid
+            bid = OrderBookOrder(
+                maker_id=order.client_id,
+                quantity=order.quantity,
+                price=0,
+            )
+
+            # Look for a matching ask
+            executions = []
+
+            for ask_price in self.asks:
+                asks = self.asks[ask_price]
+
+                i = 0
+                while i < len(asks):
+                    ask = asks[i]
+
+                    if bid.quantity > 0:
+                        # Match is found against the top of the book (best ask); we can execute
+                        bid.price = ask_price
+                        execution = Execution(
+                            maker_id=ask.maker_id,
+                            taker_id=bid.maker_id,
+                            price=ask_price,  # market price
+                            quantity=min(ask.quantity, bid.quantity),
+                        )
+                        executions.append(execution)
+                        bid.quantity -= execution.quantity
+                        ask.quantity -= execution.quantity
+
+                        # Remove depleted orders
+                        if ask.quantity == 0:
+                            del asks[i]
+                            i -= 1
+                    i += 1
+
+            # If the bid is not fully matched, add it to the order book
+            if bid.quantity > 0:
+                if bid.price not in self.bids:
+                    self.bids[bid.price] = []
+                self.bids[bid.price].append(bid)
+
+            return MatchResult(
+                order_book=self.order_book,
+                executions=executions,
+            )
+
+        elif order.side == Side.SELL:
+            # Incoming ask
+            ask = OrderBookOrder(
+                maker_id=order.client_id, quantity=order.quantity, price=order.price
+            )
+
+            # Look for a matching bid
+            executions = []
+
+            for bid_price in reversed(self.bids):
+                bids = self.bids[bid_price]
+
+                i = 0
+                while i < len(bids):
+                    bid = bids[i]
+
+                    if ask.quantity > 0:
+                        # Match is found at the top of the book (best bid); we can execute
+                        ask.price = bid_price
+                        execution = Execution(
+                            maker_id=bid.maker_id,
+                            taker_id=ask.maker_id,
+                            price=bid_price,  # market price
+                            quantity=min(ask.quantity, bid.quantity),
+                        )
+                        executions.append(execution)
+
+                        ask.quantity -= execution.quantity
+                        bid.quantity -= execution.quantity
+
+                        # Remove depleted orders
+                        if bid.quantity == 0:
+                            del bids[i]
+                            i -= 1
+
+                    i += 1
+
+            # If the ask is not fully matched, add it to the order book
+            if ask.quantity > 0:
+                if ask.price not in self.asks:
+                    self.asks[ask.price] = []
+                self.asks[ask.price].append(ask)
+
+            return MatchResult(
+                order_book=self.order_book,
+                executions=executions,
+            )
+
+        else:
+            raise ValueError(f'Unsupported order side "{order.side}"')
 
 
 class RootMatcher:

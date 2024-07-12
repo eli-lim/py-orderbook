@@ -216,13 +216,208 @@ def test_price_time_priority():
 
 
 def test_market_buy():
-    # TODO
-    pass
+    """
+    Test that a market buy order is matched against the best available asks.
+    """
+
+    matcher = Matcher(
+        orderbook("""
+            ASK 11.5 : 1[200]
+            ASK 11.0 : 2[100]
+            ASK 10.5 : 3[50] 2[30]
+            BID 10.0 : 3[50] 
+            BID 9.80 : 2[100]
+            BID 9.70 : 1[200]
+        """)
+    )
+
+    result = matcher.add(
+        Order(
+            id="1",
+            client_id=4,
+            security_id=1,
+            type=OrderType.market,
+            side=Side.BUY,
+            quantity=120,
+        )
+    )
+
+    assert result.executions == [
+        Execution(maker_id=3, taker_id=4, price=10.5, quantity=50),
+        Execution(maker_id=2, taker_id=4, price=10.5, quantity=30),
+        Execution(maker_id=2, taker_id=4, price=11.0, quantity=40),
+    ]
+    assert result.order_book == orderbook("""
+        ASK 11.5 : 1[200]
+        ASK 11.0 :  2[60]
+        ASK 10.5 :
+        BID 10.0 :  3[50] 
+        BID 9.80 : 2[100]
+        BID 9.70 : 1[200]
+    """)
+
+    result = matcher.add(
+        Order(
+            id="2",
+            client_id=4,
+            security_id=1,
+            type=OrderType.market,
+            side=Side.BUY,
+            quantity=120,
+            price=0,
+        )
+    )
+
+
+def test_market_buy_low_liquidity():
+    """
+    Test that a market buy order for a quantity that exceeds the available liquidity.
+    The market order is expected to be partially executed, and the remaining quantity is added to the order book at
+    the last matched price, waiting to be filled.
+    """
+
+    matcher = Matcher(
+        orderbook("""
+            ASK 11.5 : 1[200]
+            ASK 11.0 : 2[100]
+            ASK 10.5 : 3[50] 2[30]
+            BID 10.0 : 3[50] 
+            BID 9.80 : 2[100]
+            BID 9.70 : 1[200]
+        """)
+    )
+
+    result = matcher.add(
+        Order(
+            id="1",
+            client_id=4,
+            security_id=1,
+            type=OrderType.market,
+            side=Side.BUY,
+            quantity=500,
+        )
+    )
+
+    assert result.executions == [
+        Execution(maker_id=3, taker_id=4, price=10.5, quantity=50),
+        Execution(maker_id=2, taker_id=4, price=10.5, quantity=30),
+        Execution(maker_id=2, taker_id=4, price=11.0, quantity=100),
+        Execution(maker_id=1, taker_id=4, price=11.5, quantity=200),
+    ]
+    assert result.order_book == orderbook("""
+        BID 11.5 : 4[120]
+        ASK 11.5 :
+        ASK 11.0 :
+        ASK 10.5 :
+        BID 10.0 : 3[50] 
+        BID 9.80 : 2[100]
+        BID 9.70 : 1[200]
+    """)
 
 
 def test_market_sell():
-    # TODO
-    pass
+    """
+    Test that a market sell order is matched against the best available bids.
+    """
+
+    matcher = Matcher(
+        orderbook("""
+            ASK 11.5 : 1[200]
+            BID 11.0 :  5[90] 
+            BID 10.0 :  3[50] 
+            BID 9.80 : 2[100]
+            BID 9.70 : 1[200]
+        """)
+    )
+
+    result = matcher.add(
+        Order(
+            id="1",
+            client_id=4,
+            security_id=1,
+            type=OrderType.market,
+            side=Side.SELL,
+            quantity=50,
+        )
+    )
+
+    assert result.executions == [
+        Execution(maker_id=5, taker_id=4, price=11.0, quantity=50),
+    ]
+    assert result.order_book == orderbook("""
+        ASK 11.5 : 1[200]
+        BID 11.0 :  5[40] 
+        BID 10.0 :  3[50] 
+        BID 9.80 : 2[100]
+        BID 9.70 : 1[200]
+    """)
+
+    result = matcher.add(
+        Order(
+            id="2",
+            client_id=4,
+            security_id=1,
+            type=OrderType.market,
+            side=Side.SELL,
+            quantity=50,
+        )
+    )
+
+    assert result.executions == [
+        Execution(maker_id=5, taker_id=4, price=11.0, quantity=40),
+        Execution(maker_id=3, taker_id=4, price=10.0, quantity=10),
+    ]
+    assert result.order_book == orderbook("""
+        ASK 11.5 : 1[200]
+        BID 11.0 :
+        BID 10.0 :  3[40] 
+        BID 9.80 : 2[100]
+        BID 9.70 : 1[200]
+    """)
+
+
+def test_market_sell_low_liquidity():
+    """
+    Test that a market sell order for a quantity that exceeds the available liquidity.
+    The market order is expected to be partially executed, and the remaining quantity is added to the order book at
+    the last matched price, waiting to be filled.
+    """
+
+    matcher = Matcher(
+        orderbook("""
+            ASK 11.5 : 1[200]
+            BID 11.0 :  5[90] 
+            BID 10.0 :  3[50] 
+            BID 9.80 : 2[100]
+            BID 9.70 : 1[200]
+        """)
+    )
+
+    result = matcher.add(
+        Order(
+            id="1",
+            client_id=4,
+            security_id=1,
+            type=OrderType.market,
+            side=Side.SELL,
+            quantity=500,
+        )
+    )
+
+    assert result.executions == [
+        Execution(maker_id=5, taker_id=4, price=11.0, quantity=90),
+        Execution(maker_id=3, taker_id=4, price=10.0, quantity=50),
+        Execution(maker_id=2, taker_id=4, price=9.80, quantity=100),
+        Execution(maker_id=1, taker_id=4, price=9.70, quantity=200),
+    ]
+    assert result.order_book == orderbook("""
+        ASK 11.5 : 1[200]
+        BID 11.0 : 
+        BID 10.0 :
+        BID 9.80 :
+        BID 9.70 :
+        ASK 9.70 : 4[60]
+    """)
 
 
 def test_cancel_order():
